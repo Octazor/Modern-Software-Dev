@@ -1,278 +1,284 @@
-# Week 7 Writeup: Modern Software Support
+# Week 8 Writeup: Automated UI and App Building
 
 ## Overview
 
-This week focused on using AI for software support workflows — debugging, log analysis, incident triage, and documentation generation. The assignment involved taking a broken FastAPI application with intentionally introduced bugs, using AI tools to diagnose and fix each one, and documenting the process.
+This week covered AI-assisted frontend and full-stack application building — using tools like v0, Lovable, and Claude Artifacts to rapidly scaffold UIs, and then integrating them with backend APIs. The assignment involved building a complete UI for the task management app from previous weeks using AI-generated components.
 
 ---
 
-## Part 1: The Broken Application
+## Part 1: AI UI Generation Tools
 
-The target app was a FastAPI task management service with the following known (but undisclosed) bugs introduced:
+### Tool Comparison
 
-1. A performance bug (N+1 query pattern)
-2. A logic bug in pagination
-3. A memory leak in background task handling
-4. Incorrect HTTP status codes on certain error paths
-
----
-
-## Part 2: AI-Assisted Debugging Sessions
-
-### Bug 1: N+1 Query Performance Issue
-
-**Symptom observed:**
-Response times for `GET /users/{user_id}/tasks` degraded from ~20ms to ~2000ms as the database grew.
-
-**Debugging approach:**
-I pasted the route handler and models into Claude with the prompt:
-
-```
-This endpoint is getting progressively slower as data grows. 
-Can you identify any database query performance issues?
-
-[code pasted]
-```
-
-**Claude's diagnosis:**
-```
-I can see an N+1 query problem. The route fetches a User object, then 
-for each task in user.tasks, it accesses task.tags — which triggers a 
-separate SELECT for each task's tags. For a user with 100 tasks, 
-this results in 101 database queries.
-
-Fix: Use SQLAlchemy's joinedload or selectinload to eager-load the 
-tags relationship in the initial query.
-```
-
-**Fix applied:**
-```python
-# Before
-user = db.query(User).filter(User.id == user_id).first()
-tasks = user.tasks  # Each task.tags access triggers a new query
-
-# After
-from sqlalchemy.orm import selectinload
-
-user = db.query(User)\
-    .options(selectinload(User.tasks).selectinload(Task.tags))\
-    .filter(User.id == user_id)\
-    .first()
-```
-
-**Result:** Response time dropped from ~2000ms back to ~18ms. Query count reduced from 101 to 2.
+| Tool | Strengths | Weaknesses |
+|------|-----------|------------|
+| **v0 (Vercel)** | React + Tailwind, production-quality components, excellent shadcn/ui integration | Requires Vercel ecosystem, limited backend integration |
+| **Lovable** | Full-stack generation (React + Supabase), deploys in one click | Less control over code structure |
+| **Claude Artifacts** | Flexible, great for self-contained widgets and prototypes | Stateless between sessions |
+| **Cursor Composer** | Best for adding UI to an existing codebase | Requires existing project structure |
 
 ---
 
-### Bug 2: Pagination Logic Error
+## Part 2: Building the Task Manager UI
 
-**Symptom observed:**
-`GET /tasks?page=1&per_page=10` returned items 0–9. `page=2` returned items 10–19. But `page=0` returned the same items as `page=1` — and negative page numbers caused a 500 error.
+### Step 1: Initial UI Generation with v0
 
-**Debugging approach:**
+**Prompt to v0:**
 ```
-This pagination function returns wrong results for page=0 and crashes on negative page values.
-Find the bug and fix it.
-
-def get_tasks_paginated(db, page: int, per_page: int):
-    offset = page * per_page
-    return db.query(Task).offset(offset).limit(per_page).all()
-```
-
-**Claude's diagnosis:**
-```
-Two issues:
-
-1. Page 0 and page 1 both produce offset=0 (page 0 → 0*10=0, page 1 → 1*10=10 only if 
-   page is 1-indexed). The current formula assumes 0-indexed pages but the API docs 
-   likely describe 1-indexed pages. Use offset = (page - 1) * per_page for 1-indexed.
-
-2. Negative page values produce a negative offset, which SQLAlchemy silently converts 
-   to 0 in some drivers, or raises an error in others. Add input validation.
+Create a task management dashboard with:
+- A sidebar with navigation (Dashboard, Tasks, Analytics, Settings)
+- A main content area showing a list of tasks in a card grid
+- Each task card shows: title, status badge (Todo/In Progress/Done), due date, assignee avatar
+- A "New Task" button that opens a modal form
+- Filter controls at the top (by status, by date range)
+- Dark mode support
+Use shadcn/ui components and Tailwind CSS.
 ```
 
-**Fix applied:**
-```python
-from fastapi import Query, HTTPException
+**Generated output:** A complete React component (~450 lines) with all requested features. The status badges used appropriate colors (gray/blue/green), the modal had proper focus trapping, and dark mode was implemented via Tailwind's `dark:` prefix.
 
-@app.get("/tasks")
-def get_tasks(
-    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
-    per_page: int = Query(default=10, ge=1, le=100)
-):
-    offset = (page - 1) * per_page
-    tasks = db.query(Task).offset(offset).limit(per_page).all()
-    return tasks
-```
-
-Using FastAPI's `Query(ge=1)` constraint means invalid values are rejected with a 422 before reaching the handler.
+**Iterations made:**
+1. First pass: cards were too small on mobile → prompted "make the card grid responsive with 1 col on mobile, 2 on tablet, 3 on desktop"
+2. Second pass: filter dropdowns were unstyled → prompted "use shadcn Select components for the filters"
+3. Third pass: modal had no loading state → prompted "add a loading spinner to the submit button while the API call is in flight"
 
 ---
 
-### Bug 3: Memory Leak in Background Tasks
+### Step 2: API Integration
 
-**Symptom observed:**
-Memory usage grew steadily over time when the background email notification task was enabled. After ~1 hour, the process was using 800MB+ of RAM.
+After generating the static UI, I connected it to the FastAPI backend from previous weeks.
 
-**Debugging approach:**
-I used `tracemalloc` to capture a memory snapshot and pasted the output to Claude:
+**Custom hook for data fetching:**
+```typescript
+// hooks/useTasks.ts
+import { useState, useEffect } from "react";
 
-```
-Here's a tracemalloc snapshot showing memory growth. 
-Can you identify what's accumulating?
+interface Task {
+  id: number;
+  title: string;
+  status: "todo" | "in_progress" | "done";
+  due_date: string | null;
+  assignee_id: number | null;
+}
 
-Top 10 memory consumers:
-/myapp/notifications.py:45: size=340 MiB, count=89432, average=4.0 KiB
-/myapp/notifications.py:62: size=12 MiB, count=3240, average=3.8 KiB
-...
-```
+export function useTasks(filters: { status?: string; page?: number }) {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
 
-**Claude's diagnosis:**
-```
-The tracemalloc output points to notifications.py:45. Looking at your code, 
-the issue is that completed_notifications list is never cleared:
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.status) params.set("status", filters.status);
+    if (filters.page) params.set("page", String(filters.page));
 
-completed_notifications = []  # module-level list
-
-async def send_notification(task_id: int):
-    # ... send email
-    completed_notifications.append({"task_id": task_id, "sent_at": datetime.now(), "details": full_task_object})
-
-This list grows unboundedly. Storing the full task object (with all relationships) 
-for each notification is particularly expensive — 89,432 objects at 4KB each explains your 340MB.
-```
-
-**Fix applied:**
-```python
-from collections import deque
-
-# Use a bounded deque to keep only recent history
-completed_notifications: deque = deque(maxlen=1000)
-
-async def send_notification(task_id: int):
-    # ... send email
-    # Store only what's needed for logging, not the full object
-    completed_notifications.append({
-        "task_id": task_id,
-        "sent_at": datetime.now().isoformat()
+    fetch(`/api/tasks?${params}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
     })
-```
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch tasks");
+        return res.json();
+      })
+      .then((data) => {
+        setTasks(data.tasks);
+        setTotal(data.total);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [filters.status, filters.page]);
 
-**Result:** Memory stabilized at ~45MB and no longer grew over time.
-
----
-
-### Bug 4: Incorrect HTTP Status Codes
-
-**Symptom observed:**
-- `DELETE /tasks/999` (non-existent ID) returned `200 OK` with `{"deleted": false}` instead of `404`
-- `POST /tasks` with duplicate title returned `200 OK` instead of `409 Conflict`
-
-**Debugging with Claude:**
-```
-Review these route handlers and tell me if the HTTP status codes are semantically correct.
-[handlers pasted]
-```
-
-**Claude's response:**
-```
-Two issues:
-
-1. DELETE returning 200 with {"deleted": false} is misleading. A 200 response 
-   tells the client "everything is fine" — the client has no reason to check 
-   the body. Proper behavior: return 404 if the resource doesn't exist, 
-   204 No Content on successful deletion.
-
-2. POST with duplicate returning 200 violates REST semantics. The correct 
-   status for a conflict (e.g., unique constraint violation) is 409 Conflict, 
-   which lets API clients handle it programmatically.
-```
-
-**Fix applied:**
-```python
-@app.delete("/tasks/{task_id}", status_code=204)
-def delete_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.query(Task).filter(Task.id == task_id).first()
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    db.delete(task)
-    db.commit()
-
-@app.post("/tasks", status_code=201)
-def create_task(task: TaskCreate, db: Session = Depends(get_db)):
-    existing = db.query(Task).filter(Task.title == task.title).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="A task with this title already exists")
-    # ... create task
-```
-
----
-
-## Part 3: AI-Generated Documentation
-
-After fixing all bugs, I used Claude to auto-generate updated API documentation:
-
-**Prompt:**
-```
-Generate comprehensive API documentation in Markdown for these FastAPI routes. 
-Include: endpoint, method, description, parameters, request body, response codes, and examples.
-[routes pasted]
-```
-
-**Output (excerpt):**
-
-```markdown
-## GET /tasks
-
-Returns a paginated list of tasks.
-
-**Parameters:**
-| Name | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| page | integer | No | 1 | Page number (1-indexed, min: 1) |
-| per_page | integer | No | 10 | Items per page (min: 1, max: 100) |
-
-**Response: 200 OK**
-```json
-{
-  "tasks": [...],
-  "total": 42,
-  "page": 1,
-  "per_page": 10
+  return { tasks, loading, error, total };
 }
 ```
 
-**Response: 422 Unprocessable Entity** — Invalid page or per_page value
+**Prompt used to generate this hook:**
+```
+Generate a React custom hook called useTasks that fetches tasks from GET /api/tasks.
+It should accept a filters object with optional status and page fields.
+It should handle loading, error, and success states.
+Auth token should be read from localStorage under the key "token".
+Use TypeScript with proper types.
 ```
 
 ---
 
-## Part 4: Log Analysis
+### Step 3: Auth Flow UI
 
-I fed a production error log to Claude and asked it to triage:
+**Prompt to Claude:**
+```
+Create a login/register page for a React app. Requirements:
+- Two tabs: Login and Register
+- Login: email + password fields, submit button
+- Register: username, email, password, confirm password
+- Show inline validation errors (password mismatch, empty fields)
+- On successful login, store JWT from response in localStorage
+- On success, redirect to /dashboard
+- Use shadcn/ui form components
+```
+
+**Generated component (key parts):**
+```tsx
+// components/AuthPage.tsx
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useNavigate } from "react-router-dom";
+
+export function AuthPage() {
+  const navigate = useNavigate();
+  const [loginError, setLoginError] = useState("");
+  const [registerErrors, setRegisterErrors] = useState<Record<string, string>>({});
+
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        username: form.get("email") as string,
+        password: form.get("password") as string,
+      }),
+    });
+    if (!res.ok) {
+      setLoginError("Invalid email or password");
+      return;
+    }
+    const { access_token } = await res.json();
+    localStorage.setItem("token", access_token);
+    navigate("/dashboard");
+  }
+
+  // ... register handler with validation
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="w-full max-w-md space-y-8 rounded-xl bg-white p-8 shadow-lg dark:bg-gray-800">
+        <h1 className="text-center text-2xl font-bold">Task Manager</h1>
+        <Tabs defaultValue="login">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="login">Login</TabsTrigger>
+            <TabsTrigger value="register">Register</TabsTrigger>
+          </TabsList>
+          {/* ... tab content */}
+        </Tabs>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### Step 4: Analytics Dashboard
+
+**Prompt:**
+```
+Using recharts, create a dashboard with:
+1. A line chart showing tasks created per day over the last 30 days
+2. A pie chart showing task distribution by status (Todo, In Progress, Done)
+3. A stat card row showing: Total Tasks, Completed This Week, Overdue Tasks
+Data comes from GET /api/analytics which returns JSON.
+```
+
+**Generated output included:**
+```tsx
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+
+const STATUS_COLORS = {
+  todo: "#94a3b8",
+  in_progress: "#3b82f6",
+  done: "#22c55e",
+};
+
+function AnalyticsDashboard({ data }) {
+  return (
+    <div className="space-y-6">
+      {/* Stat cards */}
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard label="Total Tasks" value={data.total} />
+        <StatCard label="Completed This Week" value={data.completed_this_week} trend="+12%" />
+        <StatCard label="Overdue" value={data.overdue} trend="-3%" trendPositive={false} />
+      </div>
+
+      {/* Line chart */}
+      <div className="rounded-xl border bg-white p-6 dark:bg-gray-800">
+        <h3 className="mb-4 font-semibold">Tasks Created (Last 30 Days)</h3>
+        <ResponsiveContainer width="100%" height={250}>
+          <LineChart data={data.daily_counts}>
+            <XAxis dataKey="date" />
+            <YAxis />
+            <Tooltip />
+            <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Pie chart */}
+      <div className="rounded-xl border bg-white p-6 dark:bg-gray-800">
+        <h3 className="mb-4 font-semibold">Status Distribution</h3>
+        <ResponsiveContainer width="100%" height={200}>
+          <PieChart>
+            <Pie data={data.by_status} cx="50%" cy="50%" outerRadius={80} dataKey="count" nameKey="status">
+              {data.by_status.map((entry) => (
+                <Cell key={entry.status} fill={STATUS_COLORS[entry.status]} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## Part 3: Full Application Structure
+
+The final application assembled from AI-generated components:
 
 ```
-Here are the last 200 lines of our app logs during an incident. 
-Identify the root cause and timeline.
-[logs pasted]
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── AuthPage.tsx        # Login/Register (AI-generated)
+│   │   ├── Dashboard.tsx       # Main layout + sidebar (AI-generated)
+│   │   ├── TaskGrid.tsx        # Task card list with filters (AI-generated)
+│   │   ├── TaskModal.tsx       # Create/edit task modal (AI-generated)
+│   │   └── AnalyticsDashboard.tsx  # Charts + stats (AI-generated)
+│   ├── hooks/
+│   │   ├── useTasks.ts         # Data fetching hook (AI-generated)
+│   │   └── useAuth.ts          # Auth state management (AI-generated)
+│   └── App.tsx                 # Route definitions
 ```
 
-Claude correctly identified:
-1. A database connection pool exhaustion at 14:32 (all 20 connections consumed)
-2. Requests then started queuing, causing timeouts at 14:33
-3. Root cause: a long-running analytics query had been introduced in a deploy at 14:25 that held connections open for 45+ seconds
-4. Recommendation: set `pool_timeout`, use `pool_recycle`, and move analytics to a read replica
+**Time breakdown:**
+- UI scaffolding (v0 + Claude): ~2 hours
+- API integration and wiring: ~1.5 hours
+- Testing and bug fixes: ~1 hour
+- Total: ~4.5 hours for a complete full-stack UI
+
+Manual estimate for the same UI without AI tools: ~20–30 hours.
 
 ---
 
 ## Reflections
 
-1. **AI debugging requires the right context.** Pasting just the buggy function wasn't enough for the N+1 issue — I also needed to paste the model relationships. "More context" consistently improved diagnosis quality.
+1. **AI UI tools are genuinely production-ready for scaffolding.** The v0-generated components used correct accessibility attributes (`aria-label`, focus management in modals), responsive design, and dark mode — things I would often skip in a prototype.
 
-2. **tracemalloc + Claude is a powerful combo.** I never would have found the memory leak manually in reasonable time. The AI's ability to connect the tracemalloc output to a specific code pattern was genuinely impressive.
+2. **Iteration is the workflow.** No prompt produced a perfect result on the first try. The pattern of "generate → review → refine prompt → regenerate" is faster than writing from scratch but requires knowing what "good" looks like to spot what needs changing.
 
-3. **Documentation generation is a practical win.** Generating API docs from code took 30 seconds and produced better-formatted docs than I would have written manually. The main value isn't replacing the need for documentation — it's removing the friction.
+3. **Connecting AI-generated frontend to real backends requires human judgment.** The AI correctly generated the fetch calls but assumed the API response shape. When my actual API returned a slightly different structure, I had to manually reconcile the types. Always review the assumptions baked into generated code.
 
-4. **Log analysis is a killer use case.** Reading 200 lines of logs and building a coherent incident timeline is tedious for humans and fast for LLMs. This alone could significantly reduce mean time to resolution (MTTR) during incidents.
+4. **Custom hooks are the cleanest integration point.** Generating a `useTasks` hook that encapsulates all the fetch logic meant the UI components stayed clean and the data-fetching logic was testable in isolation.
 
-5. **The AI suggested fixes I wouldn't have thought of.** The bounded `deque` suggestion for the memory leak was cleaner than my instinct to add a manual "clear every N items" timer. Expert-level suggestions emerging from pattern recognition across many codebases is a genuine advantage.
+5. **The "developer as editor" role is real.** Across this entire project (weeks 1–8), the developer's role shifted from writing code to: specifying requirements, reviewing AI output, catching errors, and making architectural decisions. Writing code from scratch was a small fraction of total time by week 8.
