@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Task Tracker{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Design tokens ──────────────────────────────────────────────── */
+    :root {
+      --bg:          #0d0d0d;
+      --surface:     #161616;
+      --surface-2:   #1e1e1e;
+      --border:      #2a2a2a;
+      --border-hi:   #3d3d3d;
+      --text:        #e8e6e1;
+      --text-muted:  #7a7672;
+      --text-dim:    #4a4845;
+      --accent:      #f0c040;
+      --accent-dim:  #a07d1a;
+      --danger:      #e05252;
+      --danger-dim:  #7a2020;
+      --success:     #52c97a;
+      --success-dim: #1a5a30;
+      --pending:     #e09a3a;
+      --inprogress:  #5ab4e0;
+      --completed:   #52c97a;
+      --radius:      4px;
+      --font-display: 'Syne', sans-serif;
+      --font-body:    'DM Sans', sans-serif;
+      --font-mono:    'DM Mono', monospace;
+    }
+
+    /* ── Reset & base ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Layout ─────────────────────────────────────────────────────── */
+    .site-header {
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
+    }
+
+    .site-logo {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1.15rem;
+      letter-spacing: -.02em;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .site-logo .logo-mark {
+      width: 22px; height: 22px;
+      background: var(--accent);
+      display: inline-block;
+      border-radius: 2px;
+    }
+
+    .site-nav { display: flex; gap: 1rem; align-items: center; }
+
+    .main-wrap {
+      flex: 1;
+      max-width: 980px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2.5rem 2rem;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 1.25rem;
+      font-size: .8rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+
+    /* ── Flash messages ─────────────────────────────────────────────── */
+    .flash-list { list-style: none; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: .5rem; }
+
+    .flash {
+      padding: .7rem 1rem;
+      border-radius: var(--radius);
+      font-size: .875rem;
+      border-left: 3px solid transparent;
+    }
+
+    .flash.success {
+      background: color-mix(in srgb, var(--success-dim) 30%, var(--surface));
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .flash.error {
+      background: color-mix(in srgb, var(--danger-dim) 30%, var(--surface));
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    /* ── Buttons ────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .5rem 1rem;
+      border-radius: var(--radius);
+      font-family: var(--font-body);
+      font-size: .875rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: #d4a820; border-color: #d4a820; text-decoration: none; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border-color: var(--border-hi);
+    }
+    .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); text-decoration: none; }
+
+    .btn-danger {
+      background: transparent;
+      color: var(--danger);
+      border-color: var(--danger-dim);
+    }
+    .btn-danger:hover { background: var(--danger-dim); text-decoration: none; }
+
+    .btn-sm { padding: .3rem .65rem; font-size: .8rem; }
+
+    /* ── Forms ──────────────────────────────────────────────────────── */
+    .form-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2rem;
+      max-width: 560px;
+    }
+
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label {
+      display: block;
+      margin-bottom: .35rem;
+      font-family: var(--font-mono);
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+    }
+
+    .form-control {
+      width: 100%;
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border-hi);
+      border-radius: var(--radius);
+      padding: .55rem .8rem;
+      font-family: var(--font-body);
+      font-size: .9rem;
+      line-height: 1.5;
+      transition: border-color .15s;
+      appearance: none;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    textarea.form-control { resize: vertical; min-height: 100px; }
+
+    .form-actions {
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+      margin-top: 1.5rem;
+    }
+
+    /* ── Page heading ───────────────────────────────────────────────── */
+    .page-heading {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .page-heading h1 {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 2rem;
+      letter-spacing: -.03em;
+      line-height: 1;
+    }
+
+    /* ── Status chips ───────────────────────────────────────────────── */
+    .chip {
+      display: inline-block;
+      padding: .2rem .55rem;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      font-weight: 500;
+      letter-spacing: .04em;
+    }
+
+    .chip-pending   { background: color-mix(in srgb, var(--pending) 15%, transparent); color: var(--pending); }
+    .chip-inprogress{ background: color-mix(in srgb, var(--inprogress) 15%, transparent); color: var(--inprogress); }
+    .chip-completed { background: color-mix(in srgb, var(--completed) 15%, transparent); color: var(--completed); }
+
+    /* ── Stat row ───────────────────────────────────────────────────── */
+    .stats-row {
+      display: flex;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 1.75rem;
+    }
+
+    .stat-cell {
+      flex: 1;
+      padding: 1rem 1.25rem;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      gap: .2rem;
+    }
+
+    .stat-cell:first-child { border-radius: 5px 0 0 5px; }
+    .stat-cell:last-child  { border-radius: 0 5px 5px 0; }
+
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--text-dim);
+    }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    /* ── Filter bar ─────────────────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      gap: .5rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-link {
+      padding: .3rem .8rem;
+      border-radius: 999px;
+      font-size: .8rem;
+      font-family: var(--font-mono);
+      border: 1px solid var(--border-hi);
+      color: var(--text-muted);
+      transition: border-color .15s, color .15s;
+    }
+
+    .filter-link:hover { color: var(--text); border-color: var(--text-muted); text-decoration: none; }
+    .filter-link.active { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Task table ─────────────────────────────────────────────────── */
+    .task-table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .task-table { width: 100%; border-collapse: collapse; }
+
+    .task-table th {
+      background: var(--surface);
+      padding: .65rem 1rem;
+      text-align: left;
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .task-table td {
+      padding: .85rem 1rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .task-table tr:last-child td { border-bottom: none; }
+
+    .task-table tbody tr { background: var(--surface); transition: background .1s; }
+    .task-table tbody tr:hover { background: var(--surface-2); }
+
+    .task-title { font-weight: 500; margin-bottom: .15rem; }
+    .task-desc  { font-size: .8rem; color: var(--text-muted); font-family: var(--font-mono); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .task-actions { display: flex; gap: .4rem; justify-content: flex-end; }
+    .task-date { font-family: var(--font-mono); font-size: .72rem; color: var(--text-dim); }
+
+    /* ── Empty state ────────────────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 1rem; display: block; }
+    .empty-state p { margin-bottom: 1.25rem; }
+
+    /* ── 404 / error pages ──────────────────────────────────────────── */
+    .error-page { text-align: center; padding: 5rem 2rem; }
+    .error-code {
+      font-family: var(--font-display);
+      font-size: 6rem;
+      font-weight: 800;
+      color: var(--text-dim);
+      line-height: 1;
+    }
+    .error-msg { font-size: 1.1rem; margin: 1rem 0 2rem; color: var(--text-muted); }
+
+    /* ── Misc utilities ─────────────────────────────────────────────── */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 600px) {
+      .site-header { padding: 0 1rem; }
+      .main-wrap   { padding: 1.5rem 1rem; }
+      .stats-row   { flex-direction: column; gap: 1px; }
+      .task-desc   { display: none; }
+      .page-heading h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="site-header">
+  <a href="{{ url_for('tasks.dashboard') }}" class="site-logo" style="text-decoration:none;">
+    <span class="logo-mark"></span>
+    TaskTrack
+  </a>
+  <nav class="site-nav">
+    <a class="btn btn-primary btn-sm" href="{{ url_for('tasks.new_task') }}">+ New Task</a>
+  </nav>
+</header>
+
+<main class="main-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="flash-list">
+        {% for category, message in messages %}
+          <li class="flash {{ category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer>
+  TaskTrack · built with Flask + SQLAlchemy
+</footer>
+
+</body>
+</html>

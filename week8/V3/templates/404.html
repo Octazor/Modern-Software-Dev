@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}404 - Not Found{% endblock %}
+
+{% block nav_actions %}
+<div>
+    <a href="{{ url_for('main.index') }}" role="button" class="secondary">Back to Dashboard</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<section style="text-align: center; padding: 3rem 1rem;">
+    <h1 style="font-size: 4rem; margin-bottom: 1rem;">404</h1>
+    <h2>Page Not Found</h2>
+    <p style="color: var(--muted-color); margin-bottom: 2rem;">
+        The page or task you're looking for doesn't exist.
+    </p>
+    <a href="{{ url_for('main.index') }}" role="button">Go to Dashboard</a>
+</section>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — TaskTrack{% endblock %}
+
+{% block content %}
+
+{# ── Status stats ──────────────────────────────────────────────────────── #}
+<div class="stats-row">
+  <div class="stat-cell">
+    <span class="stat-label">Total</span>
+    <span class="stat-value">{{ tasks | length if not active_filter else (counts.values() | sum) }}</span>
+  </div>
+  {% for status in statuses %}
+    {% set slug = status | lower | replace(' ', '') %}
+    <div class="stat-cell">
+      <span class="stat-label">{{ status }}</span>
+      <span class="stat-value" style="color: var(--{{ slug }})">{{ counts[status] }}</span>
+    </div>
+  {% endfor %}
+</div>
+
+{# ── Page heading ──────────────────────────────────────────────────────── #}
+<div class="page-heading">
+  <h1>Tasks</h1>
+  <a class="btn btn-primary" href="{{ url_for('tasks.new_task') }}">+ New Task</a>
+</div>
+
+{# ── Filter bar ────────────────────────────────────────────────────────── #}
+<div class="filter-bar">
+  <a class="filter-link {% if not active_filter %}active{% endif %}"
+     href="{{ url_for('tasks.dashboard') }}">All</a>
+  {% for status in statuses %}
+    <a class="filter-link {% if active_filter == status %}active{% endif %}"
+       href="{{ url_for('tasks.dashboard', status=status) }}">{{ status }}</a>
+  {% endfor %}
+</div>
+
+{# ── Task table ────────────────────────────────────────────────────────── #}
+{% if tasks %}
+  <div class="task-table-wrap">
+    <table class="task-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Task</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th style="text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task in tasks %}
+          {% set slug = task.status | lower | replace(' ', '') %}
+          <tr>
+            <td class="task-date">{{ task.id }}</td>
+            <td>
+              <div class="task-title">{{ task.title }}</div>
+              {% if task.description %}
+                <div class="task-desc">{{ task.description }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <span class="chip chip-{{ slug }}">{{ task.status }}</span>
+            </td>
+            <td class="task-date">
+              {{ task.created_at.strftime('%b %d, %Y') }}
+            </td>
+            <td>
+              <div class="task-actions">
+                <a class="btn btn-ghost btn-sm"
+                   href="{{ url_for('tasks.edit_task', task_id=task.id) }}">Edit</a>
+
+                <form method="POST"
+                      action="{{ url_for('tasks.delete_task', task_id=task.id) }}"
+                      onsubmit="return confirm('Delete \'{{ task.title | replace("'", "\\'") }}\'?')">
+                  <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <span class="empty-icon">📋</span>
+    <p>
+      {% if active_filter %}
+        No tasks with status <strong>{{ active_filter }}</strong>.
+      {% else %}
+        No tasks yet. Create your first one!
+      {% endif %}
+    </p>
+    <a class="btn btn-primary" href="{{ url_for('tasks.new_task') }}">+ New Task</a>
+  </div>
+{% endif %}
+
+{% endblock %}

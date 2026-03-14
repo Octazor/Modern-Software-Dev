@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+{# ── Page header ──────────────────────────────────────────────────────── #}
+<div class="page-header">
+  <div class="page-header-row">
+    <div>
+      <h1>Your Tasks</h1>
+      <p class="subtitle">
+        {% if tasks %}
+          {{ tasks | length }} task{{ 's' if tasks | length != 1 }} found
+          {% if current_filter %}· filtered by <strong>{{ current_filter }}</strong>{% endif %}
+        {% else %}
+          No tasks yet — create your first one.
+        {% endif %}
+      </p>
+    </div>
+    <a href="{{ url_for('tasks.create') }}" class="btn btn-primary">
+      <span>＋</span> New Task
+    </a>
+  </div>
+</div>
+
+{# ── Status filter bar ────────────────────────────────────────────────── #}
+<div class="filter-bar">
+  <a href="{{ url_for('tasks.index') }}"
+     class="filter-chip {% if not current_filter %}filter-chip--active{% endif %}">
+    All
+  </a>
+  {% for status in statuses %}
+    <a href="{{ url_for('tasks.index', status=status) }}"
+       class="filter-chip filter-chip--{{ status | lower | replace(' ', '') }}
+              {% if current_filter == status %}filter-chip--active{% endif %}">
+      {{ status }}
+    </a>
+  {% endfor %}
+</div>
+
+{# ── Task list ────────────────────────────────────────────────────────── #}
+{% if tasks %}
+  <div class="task-list">
+    {% for task in tasks %}
+      <article class="task-card task-card--{{ task.status | lower | replace(' ', '') }}">
+
+        {# Left accent bar based on status #}
+        <div class="task-accent"></div>
+
+        <div class="task-body">
+          <div class="task-top">
+            {# Status badge #}
+            <span class="badge badge-{{ task.status | lower | replace(' ', '') }}">
+              {{ task.status }}
+            </span>
+            {# Created date #}
+            <span class="text-muted text-sm text-mono">
+              #{{ task.id }} &middot;
+              {{ task.created_at.strftime('%b %d, %Y') }}
+            </span>
+          </div>
+
+          <h2 class="task-title">{{ task.title }}</h2>
+
+          {% if task.description %}
+            <p class="task-desc">{{ task.description }}</p>
+          {% else %}
+            <p class="task-desc task-desc--empty">No description provided.</p>
+          {% endif %}
+        </div>
+
+        <div class="task-actions">
+          <a href="{{ url_for('tasks.edit', task_id=task.id) }}"
+             class="btn btn-secondary btn-sm">Edit</a>
+
+          <form method="POST"
+                action="{{ url_for('tasks.delete', task_id=task.id) }}"
+                class="delete-form"
+                onsubmit="return confirm('Delete \'{{ task.title | replace(\"'\", \"\\\\'\") }}\'?');">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </div>
+
+      </article>
+    {% endfor %}
+  </div>
+
+{% else %}
+  {# Empty state #}
+  <div class="empty-state">
+    <div class="empty-icon">📋</div>
+    <h2>
+      {% if current_filter %}
+        No <em>{{ current_filter }}</em> tasks
+      {% else %}
+        No tasks yet
+      {% endif %}
+    </h2>
+    <p>
+      {% if current_filter %}
+        Try a different filter, or
+        <a href="{{ url_for('tasks.create') }}">create a new task</a>.
+      {% else %}
+        Get started by creating your first task.
+      {% endif %}
+    </p>
+    {% if not current_filter %}
+      <a href="{{ url_for('tasks.create') }}" class="btn btn-primary mt-16">
+        Create your first task →
+      </a>
+    {% endif %}
+  </div>
+{% endif %}
+
+
+<style>
+  /* ── Filter bar ──────────────────────────────────────────────────────── */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+
+  .filter-chip {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.825rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+    border: 1px solid var(--border-dark);
+    background: var(--surface);
+    transition: all .15s;
+    font-family: var(--font-mono);
+  }
+
+  .filter-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    text-decoration: none;
+    background: var(--accent-dim);
+  }
+
+  .filter-chip--active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .filter-chip--active:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  /* ── Task list ───────────────────────────────────────────────────────── */
+  .task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .task-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    display: grid;
+    grid-template-columns: 4px 1fr auto;
+    overflow: hidden;
+    transition: box-shadow .15s, transform .15s;
+  }
+
+  .task-card:hover {
+    box-shadow: var(--shadow);
+    transform: translateY(-1px);
+  }
+
+  .task-accent { width: 4px; }
+
+  .task-card--pending    .task-accent { background: var(--status-pending); }
+  .task-card--inprogress .task-accent { background: var(--status-inprogress); }
+  .task-card--completed  .task-accent { background: var(--status-completed); }
+
+  .task-body {
+    padding: 18px 20px;
+    min-width: 0;
+  }
+
+  .task-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .task-title {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 6px;
+    line-height: 1.35;
+  }
+
+  .task-desc {
+    font-size: 0.875rem;
+    color: var(--ink-soft);
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .task-desc--empty { font-style: italic; color: var(--ink-muted); }
+
+  .task-card--completed .task-title {
+    text-decoration: line-through;
+    opacity: 0.65;
+  }
+
+  .task-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 18px 16px 18px 0;
+    justify-content: center;
+    min-width: 90px;
+  }
+
+  .delete-form { display: contents; }
+
+  /* ── Empty state ─────────────────────────────────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 80px 24px;
+    color: var(--ink-soft);
+  }
+
+  .empty-icon { font-size: 3rem; margin-bottom: 16px; }
+
+  .empty-state h2 {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    color: var(--ink);
+    margin-bottom: 10px;
+  }
+
+  .empty-state p { font-size: 0.95rem; }
+</style>
+
+{% endblock %}

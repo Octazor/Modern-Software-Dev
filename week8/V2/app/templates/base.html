@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Task Tracker{% endblock %} — TaskFlow</title>
+
+  <!-- Google Fonts: DM Serif Display + DM Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── CSS Custom Properties ─────────────────────────────────────────── */
+    :root {
+      --ink:        #1a1a2e;
+      --ink-soft:   #4a4a6a;
+      --ink-muted:  #8888aa;
+      --paper:      #f8f7f4;
+      --surface:    #ffffff;
+      --border:     #e2e0da;
+      --border-dark:#c8c5bc;
+
+      --status-pending:    #f59e0b;
+      --status-inprogress: #3b82f6;
+      --status-completed:  #10b981;
+
+      --accent:     #5b4fff;
+      --accent-dim: #ede9ff;
+      --danger:     #ef4444;
+      --danger-dim: #fef2f2;
+      --success:    #10b981;
+      --success-dim:#ecfdf5;
+      --warning:    #f59e0b;
+      --warning-dim:#fffbeb;
+
+      --radius-sm: 6px;
+      --radius:    12px;
+      --radius-lg: 18px;
+
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --shadow:    0 4px 16px rgba(0,0,0,.07), 0 1px 4px rgba(0,0,0,.05);
+      --shadow-lg: 0 10px 40px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.06);
+
+      --font-display: 'DM Serif Display', Georgia, serif;
+      --font-body:    'DM Sans', system-ui, sans-serif;
+      --font-mono:    'DM Mono', 'Courier New', monospace;
+    }
+
+    /* ── Reset & Base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background-color: var(--paper);
+      color: var(--ink);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Layout ────────────────────────────────────────────────────────── */
+    .site-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .header-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .site-logo {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .site-logo .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white;
+      font-size: 16px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    .site-logo:hover { text-decoration: none; color: var(--accent); }
+
+    .header-nav a {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--ink-soft);
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      transition: background .15s, color .15s;
+    }
+
+    .header-nav a:hover {
+      background: var(--accent-dim);
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    main {
+      flex: 1;
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+
+    .site-footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 0.8rem;
+      color: var(--ink-muted);
+      border-top: 1px solid var(--border);
+      font-family: var(--font-mono);
+    }
+
+    /* ── Flash messages ────────────────────────────────────────────────── */
+    .flash-list { list-style: none; margin-bottom: 28px; display: flex; flex-direction: column; gap: 10px; }
+
+    .flash {
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 400;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .flash::before { font-size: 1rem; }
+
+    .flash-success {
+      background: var(--success-dim);
+      border-color: #a7f3d0;
+      color: #065f46;
+    }
+    .flash-success::before { content: "✓"; }
+
+    .flash-error {
+      background: var(--danger-dim);
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+    .flash-error::before { content: "✕"; }
+
+    /* ── Cards ─────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    /* ── Buttons ───────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform .1s, box-shadow .15s, background .15s, border-color .15s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn:hover { text-decoration: none; transform: translateY(-1px); box-shadow: var(--shadow); }
+    .btn:active { transform: translateY(0); box-shadow: none; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: #4a3ee8; border-color: #4a3ee8; color: white; }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--ink-soft);
+      border-color: var(--border-dark);
+    }
+    .btn-secondary:hover { background: var(--paper); color: var(--ink); }
+
+    .btn-danger {
+      background: var(--danger-dim);
+      color: var(--danger);
+      border-color: #fca5a5;
+    }
+    .btn-danger:hover { background: var(--danger); color: white; border-color: var(--danger); }
+
+    .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
+
+    /* ── Forms ─────────────────────────────────────────────────────────── */
+    .form-group { margin-bottom: 22px; }
+
+    .form-label {
+      display: block;
+      font-size: 0.825rem;
+      font-weight: 500;
+      color: var(--ink-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 7px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border-dark);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      color: var(--ink);
+      background: var(--surface);
+      transition: border-color .15s, box-shadow .15s;
+      outline: none;
+    }
+
+    .form-control:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(91,79,255,.12);
+    }
+
+    textarea.form-control { resize: vertical; min-height: 110px; }
+
+    select.form-control { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238888aa' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
+
+    /* ── Status badges ─────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      font-family: var(--font-mono);
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .badge-pending    { background: #fef3c7; color: #92400e; }
+    .badge-inprogress { background: #dbeafe; color: #1e40af; }
+    .badge-completed  { background: #d1fae5; color: #065f46; }
+
+    /* ── Utilities ─────────────────────────────────────────────────────── */
+    .text-muted  { color: var(--ink-muted); }
+    .text-sm     { font-size: 0.875rem; }
+    .text-mono   { font-family: var(--font-mono); }
+    .mt-0  { margin-top: 0; }
+    .mt-4  { margin-top: 4px; }
+    .mt-8  { margin-top: 8px; }
+    .mt-16 { margin-top: 16px; }
+    .mt-24 { margin-top: 24px; }
+    .flex  { display: flex; }
+    .items-center { align-items: center; }
+    .gap-8 { gap: 8px; }
+    .gap-12 { gap: 12px; }
+
+    /* ── Page header ───────────────────────────────────────────────────── */
+    .page-header {
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .page-header h1 {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .page-header .subtitle {
+      color: var(--ink-soft);
+      margin-top: 6px;
+      font-size: 0.95rem;
+    }
+
+    .page-header-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="{{ url_for('tasks.index') }}" class="site-logo">
+        <span class="logo-icon">tf</span>
+        TaskFlow
+      </a>
+      <nav class="header-nav">
+        <a href="{{ url_for('tasks.create') }}">+ New Task</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ── Main ───────────────────────────────────────────────────────────── -->
+  <main>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-list">
+          {% for category, message in messages %}
+            <li class="flash flash-{{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+
+  </main>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+  <footer class="site-footer">
+    TaskFlow &mdash; Project Task Tracker &mdash; Built with Flask &amp; SQLite
+  </footer>
+
+</body>
+</html>

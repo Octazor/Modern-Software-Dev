@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} Task{% endblock %}
+
+{% block content %}
+
+{# ── Breadcrumb ───────────────────────────────────────────────────────── #}
+<nav class="breadcrumb">
+  <a href="{{ url_for('tasks.index') }}">← All Tasks</a>
+  <span class="breadcrumb-sep">/</span>
+  <span>{{ action }} Task{% if task %} #{{ task.id }}{% endif %}</span>
+</nav>
+
+{# ── Page header ──────────────────────────────────────────────────────── #}
+<div class="page-header">
+  <h1>
+    {% if action == 'Create' %}
+      Create a New Task
+    {% else %}
+      Edit Task
+      {% if task %}
+        <span class="task-id-label">#{{ task.id }}</span>
+      {% endif %}
+    {% endif %}
+  </h1>
+  <p class="subtitle">
+    {% if action == 'Create' %}
+      Fill in the details below to add a task to your tracker.
+    {% else %}
+      Update the fields below and save your changes.
+    {% endif %}
+  </p>
+</div>
+
+{# ── Form card ────────────────────────────────────────────────────────── #}
+<div class="form-card card">
+  <form method="POST"
+        action="{% if action == 'Create' %}{{ url_for('tasks.create') }}{% else %}{{ url_for('tasks.edit', task_id=task.id) }}{% endif %}"
+        novalidate>
+
+    {# Title ────────────────────────────────────────────────────────────── #}
+    <div class="form-group">
+      <label class="form-label" for="title">
+        Title <span class="required-star">*</span>
+      </label>
+      <input
+        type="text"
+        id="title"
+        name="title"
+        class="form-control"
+        value="{{ form_data.title }}"
+        placeholder="e.g. Implement authentication module"
+        maxlength="200"
+        required
+        autofocus
+      />
+      <p class="form-hint">Required. Maximum 200 characters.</p>
+    </div>
+
+    {# Description ──────────────────────────────────────────────────────── #}
+    <div class="form-group">
+      <label class="form-label" for="description">Description</label>
+      <textarea
+        id="description"
+        name="description"
+        class="form-control"
+        placeholder="Optional — add context, acceptance criteria, or notes…"
+        rows="4"
+      >{{ form_data.description }}</textarea>
+      <p class="form-hint">Optional. Supports plain text.</p>
+    </div>
+
+    {# Status ───────────────────────────────────────────────────────────── #}
+    <div class="form-group">
+      <label class="form-label" for="status">Status</label>
+      <select id="status" name="status" class="form-control">
+        {% for s in statuses %}
+          <option value="{{ s }}" {% if form_data.status == s %}selected{% endif %}>
+            {{ s }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {# Metadata (edit mode only) ────────────────────────────────────────── #}
+    {% if task %}
+      <div class="meta-row">
+        <span class="meta-item">
+          <span class="meta-label">Created</span>
+          <span class="meta-value text-mono">{{ task.created_at.strftime('%b %d, %Y · %H:%M') }} UTC</span>
+        </span>
+        <span class="meta-item">
+          <span class="meta-label">Last updated</span>
+          <span class="meta-value text-mono">{{ task.updated_at.strftime('%b %d, %Y · %H:%M') }} UTC</span>
+        </span>
+      </div>
+    {% endif %}
+
+    {# Actions ──────────────────────────────────────────────────────────── #}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        {% if action == 'Create' %}
+          ＋ Create Task
+        {% else %}
+          ✓ Save Changes
+        {% endif %}
+      </button>
+      <a href="{{ url_for('tasks.index') }}" class="btn btn-secondary">Cancel</a>
+
+      {% if action == 'Update' and task %}
+        <div class="actions-right">
+          <form method="POST"
+                action="{{ url_for('tasks.delete', task_id=task.id) }}"
+                onsubmit="return confirm('Permanently delete this task?');"
+                style="display:inline;">
+            <button type="submit" class="btn btn-danger btn-sm">Delete this task</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+
+  </form>
+</div>
+
+
+<style>
+  /* ── Breadcrumb ──────────────────────────────────────────────────────── */
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.875rem;
+    color: var(--ink-muted);
+    margin-bottom: 24px;
+    font-family: var(--font-mono);
+  }
+
+  .breadcrumb a { color: var(--accent); }
+  .breadcrumb-sep { color: var(--border-dark); }
+
+  /* ── Task id label ───────────────────────────────────────────────────── */
+  .task-id-label {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    color: var(--ink-muted);
+    font-weight: 300;
+  }
+
+  /* ── Form card ───────────────────────────────────────────────────────── */
+  .form-card {
+    padding: 32px 36px;
+    max-width: 640px;
+  }
+
+  /* ── Form hints ──────────────────────────────────────────────────────── */
+  .form-hint {
+    margin-top: 5px;
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+  }
+
+  .required-star { color: var(--danger); }
+
+  /* ── Meta row ────────────────────────────────────────────────────────── */
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 16px 0;
+    margin-bottom: 4px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .meta-item { display: flex; flex-direction: column; gap: 2px; }
+
+  .meta-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--ink-muted);
+  }
+
+  .meta-value {
+    font-size: 0.825rem;
+    color: var(--ink-soft);
+  }
+
+  /* ── Form actions ────────────────────────────────────────────────────── */
+  .form-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+
+  .actions-right { margin-left: auto; }
+
+  @media (max-width: 600px) {
+    .form-card { padding: 24px 20px; }
+    .actions-right { margin-left: 0; }
+  }
+</style>
+
+{% endblock %}

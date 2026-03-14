@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}500 Server Error — TaskTrack{% endblock %}
+
+{% block content %}
+<div class="error-page">
+  <div class="error-code">500</div>
+  <p class="error-msg">Something went wrong on our end. Please try again.</p>
+  <a class="btn btn-primary" href="{{ url_for('tasks.dashboard') }}">← Back to Dashboard</a>
+</div>
+{% endblock %}

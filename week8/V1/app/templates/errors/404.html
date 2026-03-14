@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}404 Not Found — TaskTrack{% endblock %}
+
+{% block content %}
+<div class="error-page">
+  <div class="error-code">404</div>
+  <p class="error-msg">That task doesn't exist (or was already deleted).</p>
+  <a class="btn btn-primary" href="{{ url_for('tasks.dashboard') }}">← Back to Dashboard</a>
+</div>
+{% endblock %}

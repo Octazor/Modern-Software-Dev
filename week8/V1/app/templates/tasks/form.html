@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% set is_edit = task is not none %}
+{% set page_title = "Edit Task" if is_edit else "New Task" %}
+
+{#
+  form_data is only populated on validation failure — it holds the raw
+  submitted values so the user's input is preserved.
+  Otherwise we fall back to the task object (edit) or empty defaults (create).
+#}
+{% set fd = form_data if form_data is defined else {} %}
+
+{% block title %}{{ page_title }} — TaskTrack{% endblock %}
+
+{% block content %}
+
+<div class="page-heading">
+  <h1>{{ page_title }}</h1>
+  <a class="btn btn-ghost" href="{{ url_for('tasks.dashboard') }}">← Back</a>
+</div>
+
+<div class="form-card">
+  <form method="POST"
+        action="{{ url_for('tasks.update_task', task_id=task.id) if is_edit else url_for('tasks.create_task') }}">
+
+    {# Title ──────────────────────────────────────────────────────────── #}
+    <div class="form-group">
+      <label for="title">Title <span style="color:var(--danger)">*</span></label>
+      <input
+        id="title"
+        name="title"
+        type="text"
+        class="form-control"
+        maxlength="200"
+        required
+        placeholder="What needs to be done?"
+        value="{{ fd.get('title', task.title if is_edit else '') }}"
+      />
+    </div>
+
+    {# Description ─────────────────────────────────────────────────────── #}
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea
+        id="description"
+        name="description"
+        class="form-control"
+        placeholder="Optional details…"
+      >{{ fd.get('description', task.description if (is_edit and task.description) else '') }}</textarea>
+    </div>
+
+    {# Status ──────────────────────────────────────────────────────────── #}
+    <div class="form-group">
+      <label for="status">Status</label>
+      <select id="status" name="status" class="form-control">
+        {% set current_status = fd.get('status', task.status if is_edit else statuses[0]) %}
+        {% for s in statuses %}
+          <option value="{{ s }}" {% if s == current_status %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {# Actions ─────────────────────────────────────────────────────────── #}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        {{ "Save Changes" if is_edit else "Create Task" }}
+      </button>
+      <a class="btn btn-ghost" href="{{ url_for('tasks.dashboard') }}">Cancel</a>
+
+      {% if is_edit %}
+        {# Inline delete from the edit form — convenience shortcut #}
+        <span style="flex:1"></span>
+        <form method="POST"
+              action="{{ url_for('tasks.delete_task', task_id=task.id) }}"
+              onsubmit="return confirm('Delete this task?')">
+          <button type="submit" class="btn btn-danger btn-sm">Delete task</button>
+        </form>
+      {% endif %}
+    </div>
+
+  </form>
+</div>
+
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Task Tracker{% endblock %}
+
+{% block nav_actions %}
+<div>
+    <a href="{{ url_for('main.create') }}" role="button">+ New Task</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<section>
+    <h2>All Tasks</h2>
+
+    {% if tasks %}
+        {% for task in tasks %}
+        <article class="task-card">
+            <div class="task-header">
+                <h3 class="task-title">{{ task.title }}</h3>
+                <span class="task-status status-{{ task.status.lower().replace(' ', '-') }}">
+                    {{ task.status }}
+                </span>
+            </div>
+
+            {% if task.description %}
+            <p class="task-description">{{ task.description }}</p>
+            {% endif %}
+
+            <div class="task-actions">
+                <a href="{{ url_for('main.edit', task_id=task.id) }}" role="button" class="secondary">
+                    Edit
+                </a>
+                <form method="POST" action="{{ url_for('main.delete', task_id=task.id) }}" class="delete-form">
+                    <button type="submit" class="delete-button">
+                        Delete
+                    </button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <h3>No tasks yet</h3>
+            <p>Create your first task to get started!</p>
+            <a href="{{ url_for('main.create') }}" role="button">+ Create Task</a>
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

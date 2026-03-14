@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Task - Task Tracker{% endblock %}
+
+{% block nav_actions %}
+<div>
+    <a href="{{ url_for('main.index') }}" role="button" class="secondary">Back to Dashboard</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<section>
+    <h2>Edit Task</h2>
+
+    <form method="POST" action="{{ url_for('main.edit', task_id=task.id) }}">
+        <label for="title">
+            Title <span style="color: red;">*</span>
+            <input type="text" id="title" name="title" placeholder="Enter task title" value="{{ title or task.title }}" required maxlength="200">
+        </label>
+
+        <label for="description">
+            Description
+            <textarea id="description" name="description" placeholder="Enter task description (optional)" rows="5">{{ description or task.description or '' }}</textarea>
+        </label>
+
+        <label for="status">
+            Status
+            <select id="status" name="status">
+                {% for status_option in statuses %}
+                <option value="{{ status_option }}" {% if (status or task.status) == status_option %}selected{% endif %}>
+                    {{ status_option }}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit">Update Task</button>
+            <a href="{{ url_for('main.index') }}" role="button" class="secondary">Cancel</a>
+        </div>
+    </form>
+</section>
+{% endblock %}
